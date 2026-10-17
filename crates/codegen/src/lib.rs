@@ -49,8 +49,7 @@ pub fn generate_receiver_bindings(
     match lang {
         ReceiverLanguage::Rust => Ok(rust::generate_rust_module_bindings(module, dependency_name)),
         ReceiverLanguage::TypeScript => {
-            // TODO(idc-typescript): Generate TypeScript receiver types, reducer handles, and dependency exports.
-            anyhow::bail!("TypeScript receiver binding generation is not implemented yet")
+            Ok(typescript::generate_module_bindings(module, dependency_name))
         }
         ReceiverLanguage::Csharp { .. } => {
             // TODO(idc-csharp): Generate C# receiver types and reducer handles in the configured namespace.

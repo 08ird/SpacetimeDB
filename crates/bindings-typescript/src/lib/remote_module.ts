@@ -88,10 +88,7 @@ export function makeOutbox(
   const argColumns = Object.entries(receiver.params).map(([name, type]) => {
     const canonical = receiver.paramNames[name];
     const matches = columns.flatMap(([key, col], i) =>
-      (col.columnMetadata.name ?? key) === canonical ||
-      (col.columnMetadata.name === undefined && key === name)
-        ? [i]
-        : []
+      (col.columnMetadata.paramName ?? key) === name ? [i] : []
     );
     if (matches.length !== 1)
       throw new TypeError(

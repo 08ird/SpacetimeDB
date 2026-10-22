@@ -69,6 +69,64 @@ describe('IDC outboxes', () => {
     expect(outbox.isOutbox).toBe(true);
   });
 
+  it('matches a sender property when its database column has another name', () => {
+    const receiver = remoteModule({
+      receiveMessage: {
+        name: 'receive_message',
+        signatureHash: 456n,
+        params: { messageText: t.string() },
+        paramNames: { messageText: 'message_text' },
+      },
+    });
+    const outbox = table(
+      { outbox: { receiver: receiver.reducers.receiveMessage } },
+      {
+        id: t.u64().primaryKey().autoInc(),
+        target: receiver.identity().target(),
+        messageText: t.string().name('legacy_message'),
+      }
+    );
+    expect(outbox.outbox?.argColumns).toEqual([2]);
+    expect(outbox.rowType.row.messageText.columnMetadata.name).toBe(
+      'legacy_message'
+    );
+
+    const aliased = table(
+      { outbox: { receiver: receiver.reducers.receiveMessage } },
+      {
+        id: t.u64().primaryKey().autoInc(),
+        target: receiver.identity().target(),
+        body: t.string().name('legacy_message').param({ name: 'messageText' }),
+      }
+    );
+    expect(aliased.outbox?.argColumns).toEqual([2]);
+    expect(aliased.rowType.row.body.columnMetadata.name).toBe('legacy_message');
+    expect(aliased.rowType.row.body.columnMetadata.paramName).toBe(
+      'messageText'
+    );
+
+    const directAlias = table(
+      { outbox: { receiver: receiver.reducers.receiveMessage } },
+      {
+        id: t.u64().primaryKey().autoInc(),
+        target: receiver.identity().target(),
+        body: t.string().param({ name: 'messageText' }),
+      }
+    );
+    expect(directAlias.outbox?.argColumns).toEqual([2]);
+
+    expect(() =>
+      table(
+        { outbox: { receiver: receiver.reducers.receiveMessage } },
+        {
+          id: t.u64().primaryKey().autoInc(),
+          target: receiver.identity().target(),
+          body: t.string().name('message_text'),
+        }
+      )
+    ).toThrow("parameter 'message_text'");
+  });
+
   it('does not expose mutation methods at runtime, including indexed deletes', () => {
     const outbox = explicitOutbox();
     const db = schema({ outbox });

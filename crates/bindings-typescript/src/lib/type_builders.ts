@@ -213,6 +213,11 @@ export class TypeBuilder<Type, SpacetimeType extends AlgebraicType>
     return new OptionBuilder(this);
   }
 
+  /** Match this column to a receiver parameter in an outbox table. */
+  param<const Name extends string>(opts: { name: Name }) {
+    return new ColumnBuilder(this, { paramName: opts.name });
+  }
+
   serialize(writer: BinaryWriter, value: Type): void {
     const serialize = (this.serialize = AlgebraicType.makeSerializer(
       this.algebraicType
@@ -2156,6 +2161,7 @@ export type ColumnMetadata<Type = any> = {
   indexType?: IndexTypes;
   defaultValue?: Type;
   name?: string;
+  paramName?: string;
 };
 
 /**
@@ -2191,6 +2197,14 @@ export class ColumnBuilder<
   constructor(typeBuilder: TypeBuilder<Type, SpacetimeType>, metadata: M) {
     this.typeBuilder = typeBuilder;
     this.columnMetadata = metadata;
+  }
+
+  /** Match this column to a receiver parameter in an outbox table. */
+  param<const Name extends string>(opts: { name: Name }) {
+    return new ColumnBuilder(
+      this.typeBuilder,
+      set(this.columnMetadata, { paramName: opts.name })
+    );
   }
 
   serialize(writer: BinaryWriter, value: Type): void {

@@ -23,7 +23,13 @@ import {
   type UntypedSchemaDef,
 } from '../lib/schema';
 import type { UntypedTableSchema } from '../lib/table_schema';
-import { TypeBuilder, type ColumnBuilder } from '../lib/type_builders';
+import { makeOutbox } from '../lib/remote_module';
+import {
+  TypeBuilder,
+  ColumnBuilder,
+  RowBuilder,
+  type RowObj,
+} from '../lib/type_builders';
 import { hasOwn } from '../lib/util';
 import {
   Router,
@@ -108,10 +114,19 @@ export class SchemaInner<
    * Used for resolving scheduled table targets.
    */
   functionExports: Map<UntypedScheduledFunctionExport, string> = new Map();
+  localReducerParams: Map<
+    ReducerExport<any, any>,
+    RowObj | RowBuilder<RowObj>
+  > = new Map();
   tableSourceNames: Map<UntypedTableSchema, string[]> = new Map();
   httpHandlerExports: Map<HttpHandlerExport<UntypedSchemaDef>, string> =
     new Map();
   pendingSchedules: PendingSchedule[] = [];
+  pendingLocalOutboxes: Array<{
+    table: UntypedTableSchema;
+    tableDef: RawTableDefV10;
+  }> = [];
+  localOutboxesResolved = false;
   pendingOutboxCallbacks: {
     table: UntypedTableSchema;
     functionName: string;
@@ -209,6 +224,44 @@ export class SchemaInner<
         functionName,
       });
     }
+  }
+
+  resolveLocalOutboxes() {
+    if (this.localOutboxesResolved) return;
+    for (const { table, tableDef } of this.pendingLocalOutboxes) {
+      const receiver = table.localOutboxReceiver!();
+      const name = this.functionExports.get(receiver);
+      const declaredParams = this.localReducerParams.get(receiver);
+      if (name === undefined || declaredParams === undefined) {
+        throw new TypeError(
+          `Outbox ${tableDef.sourceName} references a reducer not exported by this module.`
+        );
+      }
+      const row =
+        declaredParams instanceof RowBuilder
+          ? declaredParams.row
+          : declaredParams;
+      const params = Object.fromEntries(
+        Object.entries(row).map(([key, builder]) => [
+          key,
+          builder instanceof ColumnBuilder ? builder.typeBuilder : builder,
+        ])
+      );
+      const paramNames = Object.fromEntries(
+        Object.keys(params).map(key => [key, key])
+      );
+      this.moduleDef.outboxes.push({
+        ...makeOutbox(
+          { name, params, paramNames, signatureHash: 0n },
+          table.rowType,
+          tableDef.primaryKey,
+          tableDef.isEvent || table.schedule !== undefined
+        ),
+        tableSourceName: tableDef.sourceName,
+        onResultReducer: undefined,
+      });
+    }
+    this.localOutboxesResolved = true;
   }
 
   resolveOutboxCallbacks() {
@@ -336,6 +389,7 @@ export class Schema<S extends UntypedSchemaDef> implements ModuleDefaultExport {
       ignoreNonModuleExports: opts?.ignoreNonModuleExports ?? false,
     });
     this.#ctx.resolveSchedules();
+    this.#ctx.resolveLocalOutboxes();
     this.#ctx.resolveOutboxCallbacks();
     return this.#ctx.rawModuleDefV10();
   }
@@ -1012,6 +1066,9 @@ export function schema<
           tableSourceName: tableDef.sourceName,
           onResultReducer: undefined,
         });
+      }
+      if (table.localOutboxReceiver) {
+        ctx.pendingLocalOutboxes.push({ table, tableDef });
       }
       if (table.schedule) {
         ctx.pendingSchedules.push({

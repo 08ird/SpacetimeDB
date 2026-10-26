@@ -41,6 +41,7 @@ export function makeReducerExport<
   lifecycle?: Lifecycle
 ): ReducerExport<S, Params> {
   const reducerExport: ReducerExport<S, Params> = (...args) => fn(...args);
+  ctx.localReducerParams.set(reducerExport, params);
   reducerExport[exportContext] = ctx;
   reducerExport[registerExport] = (ctx, exportName) => {
     registerReducer(ctx, exportName, params, fn, opts, lifecycle);

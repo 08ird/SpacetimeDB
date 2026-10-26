@@ -1212,11 +1212,11 @@ fn attach_outboxes_to_tables(
     for outbox in outboxes {
         let RawOutboxDefV10 {
             table_name: table_source_name,
-            remote_reducer,
+            mut remote_reducer,
             target_column,
             arg_columns,
             on_result_reducer,
-            signature_hash,
+            mut signature_hash,
         } = outbox;
 
         let table = tables
@@ -1305,6 +1305,24 @@ fn attach_outboxes_to_tables(
                 }
             })
             .transpose()?;
+
+        // A local receiver's canonical name and signature are known only after validation.
+        if signature_hash == spacetimedb_lib::Hash::ZERO {
+            let reducer = reducers
+                .values()
+                .find(|reducer| reducer.accessor_name.as_ref() == remote_reducer.as_ref())
+                .ok_or_else(|| ValidationError::MissingLocalOutboxReceiver {
+                    table: table.name.clone(),
+                    reducer_name: remote_reducer.clone(),
+                })?;
+            signature_hash = reducer_signature_hash(
+                &reducer.params(),
+                &reducer.ok_return_type,
+                &reducer.err_return_type,
+                core.typespace,
+            );
+            remote_reducer = reducer.name.clone().into();
+        }
 
         table.outbox = Some(OutboxDef {
             remote_reducer: ReducerName::new(
@@ -1817,6 +1835,52 @@ mod tests {
         let outbox = schema.outbox.expect("TableSchema carries outbox metadata");
         assert_eq!(&outbox.remote_reducer[..], "receive_ping");
         assert_eq!(outbox.target_column, ColId(1));
+    }
+
+    #[test]
+    fn local_outbox_resolves_receiver_signature() {
+        let mut builder = RawModuleDefV10Builder::new();
+        builder
+            .build_table_with_new_type(
+                "outgoing",
+                ProductType::from([
+                    ("id", AlgebraicType::U64),
+                    ("target", AlgebraicType::identity()),
+                    ("payload", AlgebraicType::String),
+                ]),
+                true,
+            )
+            .with_auto_inc_primary_key(0)
+            .with_index_no_accessor_name(direct(0), "outgoing_id_idx_btree")
+            .finish();
+        builder.add_reducer(
+            "receivePing",
+            ProductType::from([("messageBody", AlgebraicType::String)]),
+        );
+        builder.add_outbox(
+            "outgoing",
+            "receivePing",
+            ColId(1),
+            [ColId(2)],
+            Option::<&str>::None,
+            spacetimedb_lib::Hash::ZERO,
+        );
+
+        let module: ModuleDef = builder.finish().try_into().expect("valid local outbox");
+        let reducer = module
+            .reducers()
+            .find(|reducer| reducer.accessor_name.as_ref() == "receivePing")
+            .unwrap();
+        let expected = crate::def::reducer_signature_hash(
+            &reducer.params(),
+            &reducer.ok_return_type,
+            &reducer.err_return_type,
+            module.typespace(),
+        );
+        assert_ne!(expected, spacetimedb_lib::Hash::ZERO);
+        let outbox = module.table("outgoing").unwrap().outbox.as_ref().unwrap();
+        assert_eq!(outbox.signature_hash, expected);
+        assert_eq!(outbox.remote_reducer.as_ref(), "receive_ping");
     }
 
     #[test]

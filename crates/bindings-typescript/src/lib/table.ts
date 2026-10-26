@@ -210,7 +210,8 @@ export type TableOpts<Row extends RowObj> = {
         ReturnType<typeof t.unit>
       >;
   event?: boolean;
-  outbox?: { receiver: RemoteReducer };
+  /** A generated receiver handle, or a callback to a reducer exported by this module. */
+  outbox?: { receiver: RemoteReducer | (() => ReducerExport<any, any>) };
 };
 
 /**
@@ -519,13 +520,21 @@ export function table<Row extends RowObj, const Opts extends TableOpts<Row>>(
       ? { scheduleAtCol, reducer: scheduled }
       : undefined;
 
+  const receiver = opts.outbox?.receiver;
+  const localOutboxReceiver =
+    typeof receiver === 'function' ? receiver : undefined;
+  if (localOutboxReceiver && (scheduled || isEvent)) {
+    throw new TypeError('Outbox tables cannot be scheduled or event tables');
+  }
   const outbox =
-    opts.outbox &&
-    makeOutbox(opts.outbox.receiver, row, pk, !!scheduled || isEvent);
+    receiver && typeof receiver !== 'function'
+      ? makeOutbox(receiver, row, pk, !!scheduled || isEvent)
+      : undefined;
 
   return {
-    isOutbox: !!outbox as boolean & OptsIsOutbox<Opts>,
+    isOutbox: !!receiver as boolean & OptsIsOutbox<Opts>,
     outbox,
+    localOutboxReceiver,
     rowType: row as RowBuilder<CoerceRow<Row>>,
     tableName: name,
     rowSpacetimeType: productType,

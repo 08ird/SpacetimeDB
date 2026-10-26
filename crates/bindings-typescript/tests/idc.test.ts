@@ -36,6 +36,60 @@ function explicitOutbox() {
 }
 
 describe('IDC outboxes', () => {
+  it('references a reducer in the same module without receiver bindings', () => {
+    let receivePing: any;
+    const outbox = table(
+      { outbox: { receiver: () => receivePing } },
+      {
+        id: t.u64().primaryKey().autoInc(),
+        target: t.identity().target(),
+        payload: t.string().param({ name: 'messageBody' }),
+      }
+    );
+    const db = schema({ outbox });
+    receivePing = db.reducer({ messageBody: t.string() }, () => {});
+    const onResult = db.reducer(
+      { reactive: { onResult: outbox } },
+      { row: t.rowOf(outbox), result: t.result(t.unit(), t.string()) },
+      () => {}
+    );
+
+    const raw = db.buildRawModuleDefV10({ receivePing, onResult });
+    expect(outbox.isOutbox).toBe(true);
+    expect(raw.sections.find(s => s.tag === 'Outboxes')?.value).toEqual([
+      {
+        tableSourceName: 'outbox',
+        remoteReducer: 'receivePing',
+        signatureHash: 0n,
+        targetColumn: 1,
+        argColumns: [2],
+        onResultReducer: 'onResult',
+      },
+    ]);
+    expect(
+      db
+        .buildRawModuleDefV10({ receivePing, onResult })
+        .sections.find(s => s.tag === 'Outboxes')?.value
+    ).toHaveLength(1);
+  });
+
+  it('checks local receiver parameter types when exports are registered', () => {
+    let receivePing: any;
+    const outbox = table(
+      { outbox: { receiver: () => receivePing } },
+      {
+        id: t.u64().primaryKey().autoInc(),
+        target: t.identity().target(),
+        messageBody: t.u32(),
+      }
+    );
+    const db = schema({ outbox });
+    receivePing = db.reducer({ messageBody: t.string() }, () => {});
+    expect(() => db.buildRawModuleDefV10({ receivePing })).toThrow(
+      'wrong type'
+    );
+  });
+
   it('maps receiver parameters by name and records the result callback', () => {
     const outbox = explicitOutbox();
     const db = schema({ outbox });

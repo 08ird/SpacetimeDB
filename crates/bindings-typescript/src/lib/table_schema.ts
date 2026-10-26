@@ -48,6 +48,7 @@ export type TableSchema<
     RawOutboxDefV10,
     'tableSourceName' | 'onResultReducer'
   >;
+  readonly localOutboxReceiver?: () => ReducerExport<any, any>;
 
   /**
    * The TypeBuilder representation of the type of the rows in the table.

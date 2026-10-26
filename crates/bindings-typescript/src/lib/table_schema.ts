@@ -44,10 +44,7 @@ export type TableSchema<
    */
   readonly tableName?: string;
   readonly isOutbox?: boolean;
-  readonly outbox?: Omit<
-    RawOutboxDefV10,
-    'tableSourceName' | 'onResultReducer'
-  >;
+  readonly outbox?: Omit<RawOutboxDefV10, 'tableName' | 'onResultReducer'>;
   readonly localOutboxReceiver?: () => ReducerExport<any, any>;
 
   /**

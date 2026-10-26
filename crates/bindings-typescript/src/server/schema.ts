@@ -257,7 +257,7 @@ export class SchemaInner<
           tableDef.primaryKey,
           tableDef.isEvent || table.schedule !== undefined
         ),
-        tableSourceName: tableDef.sourceName,
+        tableName: tableDef.sourceName,
         onResultReducer: undefined,
       });
     }
@@ -273,7 +273,7 @@ export class SchemaInner<
         );
       }
       const outbox = this.moduleDef.outboxes.find(
-        o => o.tableSourceName === names[0]
+        o => o.tableName === names[0]
       );
       if (!outbox) throw new TypeError('onResult requires an outbox table');
       if (
@@ -1063,7 +1063,7 @@ export function schema<
       if (table.outbox) {
         ctx.moduleDef.outboxes.push({
           ...table.outbox,
-          tableSourceName: tableDef.sourceName,
+          tableName: tableDef.sourceName,
           onResultReducer: undefined,
         });
       }

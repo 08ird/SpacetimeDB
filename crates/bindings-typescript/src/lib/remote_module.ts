@@ -58,7 +58,7 @@ export function makeOutbox(
   row: RowBuilder<RowObj>,
   primaryKey: number[],
   scheduledOrEvent: boolean
-): Omit<RawOutboxDefV10, 'tableSourceName' | 'onResultReducer'> {
+): Omit<RawOutboxDefV10, 'tableName' | 'onResultReducer'> {
   const columns = Object.entries(row.row);
   if (scheduledOrEvent)
     throw new TypeError('Outbox tables cannot be scheduled or event tables');

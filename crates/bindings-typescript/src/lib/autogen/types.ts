@@ -466,7 +466,7 @@ export const RawModuleDefV9 = __t.object('RawModuleDefV9', {
 export type RawModuleDefV9 = __Infer<typeof RawModuleDefV9>;
 
 export const RawOutboxDefV10 = __t.object('RawOutboxDefV10', {
-  tableSourceName: __t.string(),
+  tableName: __t.string(),
   remoteReducer: __t.string(),
   targetColumn: __t.u16(),
   argColumns: __t.array(__t.u16()),

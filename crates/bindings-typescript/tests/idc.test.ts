@@ -58,7 +58,7 @@ describe('IDC outboxes', () => {
     expect(outbox.isOutbox).toBe(true);
     expect(raw.sections.find(s => s.tag === 'Outboxes')?.value).toEqual([
       {
-        tableSourceName: 'outbox',
+        tableName: 'outbox',
         remoteReducer: 'receivePing',
         signatureHash: 0n,
         targetColumn: 1,
@@ -101,7 +101,7 @@ describe('IDC outboxes', () => {
     const raw = db.buildRawModuleDefV10({ onResult });
     expect(raw.sections.find(s => s.tag === 'Outboxes')?.value).toEqual([
       {
-        tableSourceName: 'outbox',
+        tableName: 'outbox',
         remoteReducer: 'wire_ping',
         signatureHash: 123n,
         targetColumn: 2,
